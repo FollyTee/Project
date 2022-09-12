@@ -1,0 +1,458 @@
+import pandas as pd
+import numpy as np
+import re
+import seaborn as sns
+from matplotlib import style
+style.use('ggplot')
+from textblob import TextBlob
+from nltk.tokenize import word_tokenize
+from nltk.stem import PorterStemmer
+from nltk.corpus import stopwords
+stop_words = set(stopwords.words('english'))
+from wordcloud import wordcloud
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn import naive_bayes
+from sklearn. metrics import roc_auc_score
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, ConfusionMatrixDisplay
+import matplotlib.pyplot as plt
+import random
+import nltk
+import string
+import warnings
+##loading data set
+df = pd.read_csv("FTSE1.csv", names=['tweet_id', 'created_at', 'text', 'location','retweet','favorite'])
+
+df.info()
+df.columns
+##drop unused columns
+text_df1=df.drop(columns=['tweet_id', 'created_at', 'location','retweet','favorite'])
+      
+##drop missing values 
+text_df=text_df1.dropna()
+##dropping duplicates
+text_df.drop_duplicates(inplace=True)
+##Displaying the head of dataset
+text_df.head()
+import neattext.functions as nfx
+text_df['text']= text_df['text'].apply(nfx.remove_urls)
+
+## Preprocessing 
+def data_processing(text):
+    text = text.lower() #lower text conversion
+    text = re.sub(r"https?\s+|www\s+", '',text,flags=re.MULTILINE)
+    text = re.sub("@[A-Za-z0-9_]+","", text)
+    text = re.sub(r"@([a-zA-Z0-9_]{1,50})",'',text)
+    text = re.sub(r'\@w+|\#','',text)
+    text = re.sub(r'[^\w\s]','',text)
+    text_tokens = word_tokenize(text)
+    filtered_text = [w for w in text_tokens if not w in stop_words]
+    return" ".join(filtered_text)
+    
+text_df.text = text_df['text'].apply(data_processing)
+text_df = text_df.drop_duplicates('text')
+
+stemmer = PorterStemmer()
+def stemming(data):
+    text = [stemmer.stem(word) for word in data]
+    return data
+text_df['text'] = text_df['text'].apply(lambda x: stemming(x))
+
+###Calculation of polarity of text
+def polarity(text):
+    return TextBlob(text).sentiment.polarity
+text_df['polarity'] = text_df['text'].apply(polarity)
+
+###Getting sentiment of text
+def get_sentiment(text):
+    return TextBlob(text).sentiment.get_sentimen
+text_df['sentiment'] = text_df['text'].apply(get_sentiment)
+
+#plot Polarity
+import seaborn as sns
+#df2 = text_df.groupby('polarity').size().reset_index(name='coun')
+hist_plot=text_df['subjectivity']
+sns.histplot(data= hist_plot,x=text_df['subjectivity'], bins=7, color='purple')
+plt.show()
+
+###Calculation of subjectivity of text
+def subjectivity(text):
+    return TextBlob(text).sentiment.subjectivity
+text_df['subjectivity'] = text_df['text'].apply(subjectivity)
+
+
+#plot Subjectivity
+import seaborn as sns
+hist_plot=text_df['subjectivity']
+sns.histplot(data= hist_plot,x=text_df['subjectivity'])
+plt.show()
+
+##Plot of polarity and subjectivity
+import seaborn as sns
+plt.figure(figsize=(10,5))
+sns.set_style("whitegrid")
+plt.scatter(text_df['polarity'],text_df['subjectivity'], s=50, color='green')
+plt.title('scatterplot of polarity and subjectivity')
+plt.xlabel('polarity')
+plt.ylabel('subjectivity')
+plt.show()
+
+##Classifying text using polarity scores
+def sentiment_col(y):
+    if y < 0 :
+        return 'negative'
+    elif y == 0:
+        return 'neutral'
+    else :
+        return 'positive'
+    
+text_df['polarity'] = text_df['polarity'].apply(sentiment_col)
+
+
+#define data
+#text_df['sentiment'] = text_df['polarity'].apply(sentiment_col)
+df2 = text_df.groupby('polarity').size().reset_index(name='coun')
+n = df2['polarity'].unique().__len__()+1
+all_colors = list(plt.cm.colors.cnames.keys())
+random.seed(100)
+c = random.choices(all_colors, k=n)
+
+# Plot Bars
+plt.figure(figsize=(10,5), dpi= 200)
+plt.bar(df2['polarity'], df2['coun'], color=['maroon','grey','g'], width=.5)
+plt.ylabel('# Tweet', fontsize=22)
+plt.title("Tweet Sentiment", fontsize=22)
+for i, val in enumerate(df2['coun'].values):
+    plt.text(i, val, float(val), horizontalalignment='center', verticalalignment='bottom', fontdict={'fontweight':500, 'size':25})
+    
+##Pie plot
+plt.title("Tweet Sentiment")
+y = df2["polarity"]
+x = df2["coun"]
+plt.pie(x, labels = y, autopct='%1.0f%%')
+
+pos_tweet=text_df[text_df.polarity == 'positive']
+text = ' '.join([word for word in text_df['text']])
+#
+corpus = text
+
+sentences = nltk.sent_tokenize(corpus)
+
+print(type(sentences))
+
+sentence_tokens = ""
+for sentence in sentences:
+    sentence_tokens += sentence
+    
+
+#word tokenization
+
+words=nltk.word_tokenize(sentence_tokens)
+print(words)
+for word in words:
+    print(word)
+    
+
+from nltk.corpus import stopwords
+print(stopwords.words('english'))
+
+#stop word removal
+stop_words = set(stopwords.words('english'))
+filtered_words=[]
+
+for w in words:
+    if w not in stop_words:
+        filtered_words.append(w)
+
+print('/n With stop words:', words)
+print('/n After removing stop words:', filtered_words)
+
+
+#part of speech tagging
+import nltk
+nltk.download('averaged_perceptron_tagger')
+pos_tags=nltk.pos_tag(words)
+print(pos_tags)
+
+#finding the frequency distribution of words
+frequency_dist = nltk.FreqDist(filtered_words)
+
+#SORTING THE FREQUENCY DISTRIBUTION
+sorted(frequency_dist,key=frequency_dist.__getitem__,reverse=True)[0:30]
+
+#Keeping only the large words(more than 3 characters)
+large_words = dict([(k,v) for k,v in frequency_dist.items() if len (k)>4])
+
+frequency_dist = nltk.FreqDist(large_words)
+frequency_dist.plot(30, cumulative=False)
+
+#Bag-of-Words Features2
+from sklearn.feature_extraction.text import CountVectorizer
+#Design the vocabulary by taking tokens of single character by default token pattern
+count_vectorizer = CountVectorizer(max_df=0.90, min_df=2, max_features=2500, stop_words='english')
+#Create the Document Vectors: Next, we need to score the words in each 
+#text. The task here is to convert each raw text into a vector of 
+#numbers. The simplest scoring method is to mark the presence of words 
+#with 1 for present and 0 for absence
+import pandas as pd
+#create bag of words model
+bag_of_words = count_vectorizer.fit_transform(text_df['text'])
+print(bag_of_words)
+bag_of_words.toarray()
+#show the bag of words model as a pandas Dataframe
+feature_names = count_vectorizer.get_feature_names_out()
+print(pd.DataFrame(bag_of_words.toarray(), columns= feature_names))
+
+###TFIDF2
+from sklearn.feature_extraction.text import TfidfVectorizer
+import pandas as pd
+tfidf_vectorizer = TfidfVectorizer(max_df=0.90, min_df=2, max_features=2500, stop_words='english')
+values= tfidf_vectorizer.fit_transform(text_df['text'])
+print(values)
+values.toarray()
+feature_names = tfidf_vectorizer.get_feature_names_out()
+print(tfidf_vectorizer.get_feature_names())
+print(pd.DataFrame(values.toarray(), columns= feature_names))
+
+####Sentiment Classification
+X = bag_of_words.toarray()
+#X = values.toarray()
+y = text_df.iloc[:,-1].values
+
+
+####Applying Logistic Regression Classifier
+from sklearn.linear_model import LogisticRegression
+lreg = LogisticRegression()
+# training the model
+lreg.fit(X[:2500], y[:2500])
+print('Logistic Regression, Label: ' + str(lreg.predict(X[2500])))
+print('Logistic Regression, prob.' + str(lreg.predict_proba(X[2500])))
+lreg.predict(X[:2500])
+
+########Validation Techniques########
+##LogisticReg
+from sklearn.model_selection import train_test_split
+train_X, test_X, train_y, test_y = train_test_split(X, y, train_size = 0.7, shuffle = True)
+
+lreg.fit(train_X, train_y)
+pred1_y =(lreg.predict(test_X))
+print(pred1_y)
+print(test_y)
+
+###Accuracy of Logistic Reg###
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, classification_report
+acc1 = accuracy_score(test_y, pred1_y)
+print("Accuracy score: ", acc1)
+##Precision,recall and f1_score
+precision = precision_score(test_y, pred1_y, average = 'weighted')# micro, macro, weighted,,,,,,,,, p(l) = tp / tp+fp
+print("Precision: ", precision)
+recall = recall_score(test_y, pred1_y, average = 'weighted')# r(l) = tp / tp + fn
+print("Recall: ", recall)
+f1_score = f1_score(test_y, pred1_y, average = 'weighted')
+print("F1_score: ", f1_score)
+report =classification_report(test_y, pred1_y)
+print(report)
+
+
+####Confusion matrix
+from sklearn.metrics import confusion_matrix
+unique_label = np.unique([test_y, pred1_y])
+cmtx = pd.DataFrame(
+    confusion_matrix(test_y, pred1_y, labels=unique_label), 
+    index=['{:}'.format(x) for x in unique_label], 
+    columns=['{:}'.format(x) for x in unique_label]
+)
+print(cmtx)
+
+####Visualize confusion Matrix
+import seaborn as sns
+import matplotlib.pyplot as plt
+sns.heatmap(cmtx/np.sum(cmtx), annot=True,
+            fmt='.2%', cmap='Blues')
+#sns.heatmap(cmtx, cmap="Greens",annot=True,
+#            cbar_kws={"orientation":"vertical","label":"color bar"})
+plt.xlabel("Predicted label")
+plt.ylabel("Actual label")
+plt.title('Confusion matrix')
+plt.show()
+plt.show()
+
+
+#Applying K-Nearest Neighbors classifier
+from sklearn.neighbors import KNeighborsClassifier
+knn = KNeighborsClassifier(n_neighbors=5, algorithm='kd_tree',weights='distance')
+#train dataset
+knn.fit(X[:2500], y[:2500])
+print('KNN Classifier, Label: ' + str(knn.predict(X[2500])))
+print('KNN Classifier, prob.' + str(knn.predict_proba(X[2500])))
+knn.predict(X[:2500])
+knn.predict_proba(X[2500])
+
+
+########Validation Techniques########
+##KNN
+from sklearn.model_selection import train_test_split
+train_X, test_X, train_y, test_y = train_test_split(X, y, train_size = 0.7, shuffle = True)
+
+knn.fit(train_X, train_y)
+pred_y =(knn.predict(test_X))
+print(pred_y)
+print(test_y)
+###Accuracy of KNN###
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+acc2 = accuracy_score(test_y, pred_y)
+print("Accuracy score: ", acc2) 
+##Precision,recall and f1_score
+precision = precision_score(test_y, pred_y, average = 'weighted')# micro, macro, weighted,,,,,,,,, p(l) = tp / tp+fp
+print("Precision: ", precision)
+recall = recall_score(test_y, pred_y, average = 'weighted')# r(l) = tp / tp + fn
+print("Recall: ", recall)
+f1_score = f1_score(test_y, pred_y, average = 'weighted')
+print("F1_score: ", f1_score)
+report =classification_report(test_y, pred_y)
+print(report)
+
+
+####Confusion matrix
+from sklearn.metrics import confusion_matrix
+unique_label = np.unique([test_y, pred_y])
+cmtx = pd.DataFrame(
+    confusion_matrix(test_y, pred_y, labels=unique_label), 
+    index=['{:}'.format(x) for x in unique_label], 
+    columns=['{:}'.format(x) for x in unique_label]
+)
+print(cmtx)
+
+####Visualize confusion Matrix
+import seaborn as sns
+import matplotlib.pyplot as plt
+sns.heatmap(cmtx/np.sum(cmtx), annot=True,
+            fmt='.2%', cmap='Blues')
+#sns.heatmap(cmtx, cmap="Greens",annot=True,
+#            cbar_kws={"orientation":"vertical","label":"color bar"})
+plt.xlabel("Predicted label")
+plt.ylabel("Actual label")
+plt.title('Confusion matrix')
+plt.show()
+plt.show()
+
+#Applying Naive Bayes Classifier
+from sklearn.naive_bayes import MultinomialNB
+nbc = MultinomialNB(alpha=1.0,fit_prior='true')
+#train dataset
+nbc.fit(X[:2500], y[:2500])
+print('Naive Bayes Classifier, Label: ' + str(nbc.predict(X[2500])))
+print('Naive Bayes Classifier, prob.' + str(nbc.predict_proba(X[2500])))
+nbc.predict(X[:2500])
+
+########Validation Techniques########
+###NB
+from sklearn.model_selection import train_test_split
+train_X, test_X, train_y, test_y = train_test_split(X, y, train_size = 0.7, shuffle = True)
+
+nbc.fit(train_X, train_y)
+predd_y =(nbc.predict(test_X))
+print(predd_y)
+print(test_y)
+
+###Accuracy of NB###
+from sklearn.metrics import accuracy_score,precision_score, recall_score, f1_score
+acc3 = accuracy_score(test_y, predd_y)
+print("Accuracy score: ", acc3)
+
+##Precision,recall and f1_score
+precision = precision_score(test_y, predd_y, average = 'weighted')# micro, macro, weighted,,,,,,,,, p(l) = tp / tp+fp
+print("Precision: ", precision)
+recall = recall_score(test_y, predd_y, average = 'weighted')# r(l) = tp / tp + fn
+print("Recall: ", recall)
+f1_score = f1_score(test_y, predd_y, average = 'weighted')
+print("F1_score: ", f1_score)
+report =classification_report(test_y, predd_y)
+print(report)
+
+####Confusion matrix
+from sklearn.metrics import confusion_matrix
+unique_label = np.unique([test_y, predd_y])
+cmtx = pd.DataFrame(
+    confusion_matrix(test_y, predd_y, labels=unique_label), 
+    index=['{:}'.format(x) for x in unique_label], 
+    columns=['{:}'.format(x) for x in unique_label]
+)
+print(cmtx)
+
+####Visualize confusion Matrix
+import seaborn as sns
+import matplotlib.pyplot as plt
+sns.heatmap(cmtx/np.sum(cmtx), annot=True,
+            fmt='.2%', cmap='Blues')
+#sns.heatmap(cmtx, cmap="Greens",annot=True,
+#            cbar_kws={"orientation":"vertical","label":"color bar"})
+plt.xlabel("Predicted label")
+plt.ylabel("Actual label")
+plt.title('Confusion matrix')
+plt.show()
+plt.show()
+
+
+#Applying Decision Tree Classifier
+from sklearn.tree import DecisionTreeClassifier
+dtc = DecisionTreeClassifier(max_depth=2)
+dtc.fit(X[:2500], y[:2500])
+print('Decision Tree Classifier, Label: ' + str(dtc.predict(X[2500])))
+print('Decision Tree Classifier, prob.' + str(dtc.predict_proba(X[2500])))
+dtc.predict(X[:2500])
+
+########Validation Techniques########
+from sklearn.model_selection import train_test_split
+train_X, test_X, train_y, test_y = train_test_split(X, y, train_size = 0.7, shuffle = True)
+
+dtc.fit(train_X, train_y)
+preddd_y =(dtc.predict(test_X))
+print(preddd_y)
+print(test_y)
+
+###Accuracy of DecisionTree###
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+acc4 = accuracy_score(test_y, preddd_y)
+print("Accuracy score: ", acc4)
+
+##Precision,recall and f1_score
+precision = precision_score(test_y, preddd_y, average = 'weighted')# micro, macro, weighted,,,,,,,,, p(l) = tp / tp+fp
+print("Precision: ", precision)
+recall = recall_score(test_y, preddd_y, average = 'weighted')# r(l) = tp / tp + fn
+print("Recall: ", recall)
+f1_score = f1_score(test_y, preddd_y, average = 'weighted')
+print("F1_score: ", f1_score)
+report =classification_report(test_y, preddd_y)
+print(report)
+
+####Confusion matrix
+from sklearn.metrics import confusion_matrix
+unique_label = np.unique([test_y, preddd_y])
+cmtx = pd.DataFrame(
+    confusion_matrix(test_y, preddd_y, labels=unique_label), 
+    index=['{:}'.format(x) for x in unique_label], 
+    columns=['{:}'.format(x) for x in unique_label]
+)
+print(cmtx)
+
+####Visualize confusion Matrix
+import seaborn as sns
+import matplotlib.pyplot as plt
+sns.heatmap(cmtx/np.sum(cmtx), annot=True,
+            fmt='.2%', cmap='Blues')
+#sns.heatmap(cmtx, cmap="Greens",annot=True,
+#            cbar_kws={"orientation":"vertical","label":"color bar"})
+plt.xlabel("Predicted label")
+plt.ylabel("Actual label")
+plt.title('Confusion matrix')
+plt.show()
+plt.show()
+
+
+
+
+                      
+
